@@ -1,26 +1,21 @@
 from flask import Flask, request, jsonify
+from gemini_test import extract_and_save
 import os
-from PIL import Image
-import pytesseract
-import io
+
 
 app = Flask(__name__)
 
-@app.route("/")
-def home():
-    return "InvoiceBot Running"
+
 
 @app.route("/extract", methods=["POST"])
 def extract():
-    if "image" not in request.files:
-        return jsonify({"error": "No image uploaded"}), 400
+    
     
     file = request.files["image"]
-    image = Image.open(io.BytesIO(file.read()))
-    text = pytesseract.image_to_string(image)
-    
-    return jsonify({"extracted_text": text})
+    file.save("temp_invoice.jpg")
+    result = extract_and_save(image_path="temp_invoice.jpg")
+    return jsonify(result)
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
+    port = int(os.environ.get("PORT", 5001))
     app.run(host="0.0.0.0", port=port)
