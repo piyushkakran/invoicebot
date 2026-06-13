@@ -1,0 +1,101 @@
+{
+  "WhatsApp Image 2026-06-09 at 15.20.28.jpeg": {
+    "status": "failed",
+    "error": "Sheet save fail: Sheet open nahi hui \u2014 Sheet ID sahi hai?: 1WKFiRahwi8V6JxoU1ZmIUqXqFnAVDZvY0uuyf0c3I40"
+  },
+  "WhatsApp Image 2026-06-09 at 15.20.29.jpeg": {
+    "status": "failed",
+    "error": "Sheet save fail: Sheet open nahi hui \u2014 Sheet ID sahi hai?: 1WKFiRahwi8V6JxoU1ZmIUqXqFnAVDZvY0uuyf0c3I40"
+  },
+  "WhatsApp Image 2026-06-09 at 15.20.30.jpeg": {
+    "status": "failed",
+    "error": "Sheet save fail: Sheet open nahi hui \u2014 Sheet ID sahi hai?: 1WKFiRahwi8V6JxoU1ZmIUqXqFnAVDZvY0uuyf0c3I40"
+  },
+  "retry_RCS/2024/201_2026-06-09 15:52:19": {
+    "status": "success",
+    "data": {
+      "invoice_no": "RCS/2024/201",
+      "date": "03/09/2024",
+      "description": "Marble Slabs",
+      "from": "Kishangarh",
+      "to": "Delhi",
+      "gst_no": "08AABCR5678K1Z3",
+      "lorry_no": "RJ 14 GA 2233",
+      "amount": "35,000.00",
+      "grand_total": "41,300.00"
+    }
+  },
+  "retry_ab1234chj_2026-06-09 15:53:12": {
+    "status": "success",
+    "data": {
+      "invoice_no": "ab1234chj",
+      "date": "22/11/2024",
+      "description": "Steel Pipes",
+      "from": "Ludhiana",
+      "to": "Mumbai",
+      "gst_no": "03AABCN3456P1Z8",
+      "lorry_no": "PB 65 AC 8876",
+      "amount": "55,000.00",
+      "grand_total": "61,360.00"
+    }
+  },
+  "retry_HFC/2024/112_2026-06-09 15:53:54": {
+    "status": "success",
+    "data": {
+      "invoice_no": "HFC/2024/112",
+      "date": "24.08.2023",
+      "description": "Woolen Goods",
+      "from": "Amritsar",
+      "to": "Surat",
+      "gst_no": "03AABCH7890W1Z2",
+      "lorry_no": "PB 02 CH 7654",
+      "amount": "44,000.00",
+      "grand_total": "51,920.00"
+    }
+  },
+  "image.png": {
+    "status": "success",
+    "data": {
+      "invoice_no": "BE/24-25/178",
+      "date": "14/10/2024",
+      "description": "LED TVS",
+      "from": "Vijayawada",
+      "to": "Hyderabad",
+      "gst_no": "37ABTPS1234EIZ5",
+      "lorry_no": "AP 16 TV 4979",
+      "amount": "1,012.50",
+      "grand_total": "1,134.00"
+    }
+  },
+  "image copy.png": {
+    "status": "success",
+    "data": {
+      "invoice_no": "BE / 24-25 / 178",
+      "date": "14 / 10 / 2024",
+      "description": "LED TVS",
+      "from": "Vijayawada",
+      "to": "Hyderabad",
+      "gst_no": "37ABTPS1234E1Z5",
+      "lorry_no": "AP 16 TV 4979",
+      "amount": "1,012.50",
+      "grand_total": "1,134.00"
+    }
+  },
+  "image copy 2.png": {
+    "status": "success",
+    "data": {
+      "invoice_no": "BE / 24-25 / 178",
+      "date": "14 / 10 / 2024",
+      "description": "LED TVS",
+      "from": "Vijayawada",
+      "to": "Hyderabad",
+      "gst_no": "37ABTPS1234EIZ5",
+      "lorry_no": "AP 16 TV 4979",
+      "amount": "1,012.50",
+      "grand_total": "1,134.00"
+    }
+  },
+  "image copy 3.png": {
+    "status": "skipped_duplicate"
+  }
+}

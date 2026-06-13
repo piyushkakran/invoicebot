@@ -1,0 +1,436 @@
+{
+  "WhatsApp Image 2026-06-06 at 10.43.42.jpeg": {
+    "status": "success",
+    "data": {
+      "invoice_no": "INV-20240626-1074",
+      "date": "26-06-2024",
+      "description": "Consumer Products (Mixed Items)",
+      "from": "Bangalore",
+      "to": "Pune",
+      "gst_no": "27ABCDE1234F1Z4",
+      "lorry_no": "KA3FE8425",
+      "amount": "38,912.98",
+      "grand_total": "45,917.32"
+    }
+  },
+  "WhatsApp Image 2026-06-06 at 10.43.43 (2).jpeg": {
+    "status": "success",
+    "data": {
+      "invoice_no": "INV-20240507-6920",
+      "date": "07-05-2024",
+      "description": "Transportation Charges",
+      "from": "Kolkata",
+      "to": "Gurgaon",
+      "gst_no": "09ABCDE1234F1Z5",
+      "lorry_no": "KA1CC4952",
+      "amount": "38,568.06",
+      "grand_total": "43,196.23"
+    }
+  },
+  "WhatsApp Image 2026-06-07 at 13.27.26 (1).jpeg": {
+    "status": "success",
+    "data": {
+      "invoice_no": "INV-001",
+      "date": "22/05/2024",
+      "description": "Packing Charges, Loading Charges, Transport Charges, Unloading Charges, Other Charges",
+      "from": "Delhi",
+      "to": "Delhi",
+      "gst_no": "",
+      "lorry_no": "",
+      "amount": "18,500.00",
+      "grand_total": "18,500.00"
+    }
+  },
+  "WhatsApp Image 2026-05-30 at 12.49.56.jpeg": {
+    "status": "success",
+    "data": {
+      "invoice_no": "ELI-2024-556",
+      "date": "10/05/2024",
+      "description": "Freight Charges, CGST (9%), SGST (9%), Subtotal, GST (18%)",
+      "from": "Bangalore",
+      "to": "Hyderabad",
+      "gst_no": "06BBBEL9988C1Z0",
+      "lorry_no": "KA01MH5566",
+      "amount": "85,000.00",
+      "grand_total": "1,00,300.00"
+    }
+  },
+  "WhatsApp Image 2026-06-06 at 10.43.43.jpeg": {
+    "status": "success",
+    "data": {
+      "invoice_no": "INV-20240707-3686",
+      "date": "07-07-2024",
+      "description": "General Industrial Supplies, Freight Charges",
+      "from": "Noida",
+      "to": "Delhi",
+      "gst_no": "36ABCDE1234F1Z4",
+      "lorry_no": "KA4ZO1836",
+      "amount": "18,646.85",
+      "grand_total": "20,884.47"
+    }
+  },
+  "WhatsApp Image 2026-06-07 at 13.27.25.jpeg": {
+    "status": "success",
+    "data": {
+      "invoice_no": "SRR/2024/089",
+      "date": "12/06/2024",
+      "description": "Freight Charges, Loading Charges, Unloading Charges, Other Charges",
+      "from": "Bhiwandi",
+      "to": "Kalyan",
+      "gst_no": "",
+      "lorry_no": "MH 12 AB 1234",
+      "amount": "30,000.00",
+      "grand_total": "30,000.00"
+    }
+  },
+  "WhatsApp Image 2026-05-30 at 12.49.55 (1).jpeg": {
+    "status": "success",
+    "data": {
+      "invoice_no": "PGC/789",
+      "date": "20/04/2024",
+      "description": "200 Bags of Wheat",
+      "from": "Ludhiana",
+      "to": "Chennai",
+      "gst_no": "03AAAPG5678Q1Z2",
+      "lorry_no": "PB10AA1234",
+      "amount": "1,20,000.00",
+      "grand_total": "1,26,000.00"
+    }
+  },
+  "WhatsApp Image 2026-06-06 at 10.43.42 (1).jpeg": {
+    "status": "success",
+    "data": {
+      "invoice_no": "INV-20241217-4744",
+      "date": "17-12-2024",
+      "description": "General Cargo - Mixed Commodities",
+      "from": "Kolkata",
+      "to": "Gurgaon",
+      "gst_no": "33ABCDE1234F1Z5",
+      "lorry_no": "KA8EY9292",
+      "amount": "28,830.50",
+      "grand_total": "34,019.99"
+    }
+  },
+  "WhatsApp Image 2026-06-06 at 10.43.43 (1).jpeg": {
+    "status": "success",
+    "data": {
+      "invoice_no": "INV-20241031-8934",
+      "date": "31-10-2024",
+      "description": "Transportation charges from Chennai to Delhi (Household Goods)",
+      "from": "Chennai",
+      "to": "Delhi",
+      "gst_no": "24ABCDE1234F1Z8",
+      "lorry_no": "KA9SC1042",
+      "amount": "20251.56",
+      "grand_total": "21264.14"
+    }
+  },
+  "WhatsApp Image 2026-06-06 at 10.43.44.jpeg": {
+    "status": "success",
+    "data": {
+      "invoice_no": "INV-20240907-8654",
+      "date": "07-09-2024",
+      "description": "Transportation Charges From Bangalore to Ahmedabad (By Road)",
+      "from": "Bangalore",
+      "to": "Ahmedabad",
+      "gst_no": "08ABCDE1234F1Z9",
+      "lorry_no": "KA5DS5731",
+      "amount": "43,446.36",
+      "grand_total": "45,618.68"
+    }
+  },
+  "WhatsApp Image 2026-06-07 at 13.27.29.jpeg": {
+    "status": "success",
+    "data": {
+      "invoice_no": "4567",
+      "date": "21/05/2024",
+      "description": "2",
+      "from": "DELHI",
+      "to": "LUCKNOW",
+      "gst_no": "",
+      "lorry_no": "",
+      "amount": "288.85",
+      "grand_total": "340.83"
+    }
+  },
+  "WhatsApp Image 2026-06-07 at 13.27.28.jpeg": {
+    "status": "success",
+    "data": {
+      "invoice_no": "13102",
+      "date": "24/05/2024",
+      "description": "Ahmedabad - Gandhidham, Gandhidham - Mumbai, Mumbai - Ahmedabad",
+      "from": "Ahmedabad, Gandhidham, Mumbai",
+      "to": "Gandhidham, Mumbai, Ahmedabad",
+      "gst_no": "",
+      "lorry_no": "GJ-12-AT-1234",
+      "amount": "57,000/-",
+      "grand_total": "57,000/-"
+    }
+  },
+  "WhatsApp Image 2026-06-07 at 13.27.29 (2).jpeg": {
+    "status": "success",
+    "data": {
+      "invoice_no": "2024/TRP/45",
+      "date": "15 May 2024",
+      "description": "Transportation Charges, Loading Charges, Toll Charges, Other Charges",
+      "from": "Delhi",
+      "to": "Mumbai",
+      "gst_no": "06AABCV1234C1Z5",
+      "lorry_no": "HR 55 AB 1234",
+      "amount": "29,500.00",
+      "grand_total": "34,810.00"
+    }
+  },
+  "WhatsApp Image 2026-06-07 at 13.27.27.jpeg": {
+    "status": "success",
+    "data": {
+      "invoice_no": "VL/2425/0615/178",
+      "date": "15 June 2024",
+      "description": "Transportation Charges, Loading & Unloading Charges, Packing Charges",
+      "from": "Bangalore",
+      "to": "Malur",
+      "gst_no": "29AABCV1234E1Z5",
+      "lorry_no": "",
+      "amount": "21,000.00",
+      "grand_total": "22,050.00"
+    }
+  },
+  "WhatsApp Image 2026-05-30 at 12.49.56 (2).jpeg": {
+    "status": "success",
+    "data": {
+      "invoice_no": "MCS/2024/001",
+      "date": "18/05/2024",
+      "description": "Industrial Spare Parts",
+      "from": "Thane",
+      "to": "Pune",
+      "gst_no": "27AAACM0011B1Z3",
+      "lorry_no": "MH46AF1234",
+      "amount": "60,000.00",
+      "grand_total": "70,800.00"
+    }
+  },
+  "WhatsApp Image 2026-06-07 at 13.27.26.jpeg": {
+    "status": "success",
+    "data": {
+      "invoice_no": "1526",
+      "date": "25/05/24",
+      "description": "Transport Charges",
+      "from": "Jaipur",
+      "to": "Jodhpur",
+      "gst_no": "08AACFK4012P1ZB",
+      "lorry_no": "RJ 14 GH 5678",
+      "amount": "8500",
+      "grand_total": "8500"
+    }
+  },
+  "WhatsApp Image 2026-06-07 at 13.27.25 (1).jpeg": {
+    "status": "success",
+    "data": {
+      "invoice_no": "BLPL/24-25/1123",
+      "date": "24-May-2024",
+      "description": "Transportation Charges, Loading & Unloading Charges, Handling Charges",
+      "from": "Pune",
+      "to": "Pune",
+      "gst_no": "27AABCT1234A1Z5",
+      "lorry_no": "",
+      "amount": "37,000.00",
+      "grand_total": "45,000.00"
+    }
+  },
+  "WhatsApp Image 2026-06-07 at 13.27.29 (1).jpeg": {
+    "status": "success",
+    "data": {
+      "invoice_no": "JHL/24-25/109",
+      "date": "23/10/2024",
+      "description": "S.S. SHEET, S.S. SHEET, S.S. COIL, S.S. COIL, S.S. SHEET, S.S. SHEET, S.S. COIL, S.S. COIL",
+      "from": "Bhiwandi",
+      "to": "Pune",
+      "gst_no": "27ABCPJ8620M1ZP",
+      "lorry_no": "MH04KU8482",
+      "amount": "47030",
+      "grand_total": "47030"
+    }
+  },
+  "WhatsApp Image 2026-06-07 at 13.27.28 (1).jpeg": {
+    "status": "success",
+    "data": {
+      "invoice_no": "17731",
+      "date": "23/05/21",
+      "description": "Auto Parts",
+      "from": "Rohtak",
+      "to": "Kanpur",
+      "gst_no": "06AFP M7961M1Z2",
+      "lorry_no": "UP 32 CD 9900",
+      "amount": "350.00",
+      "grand_total": "350.00"
+    }
+  },
+  "WhatsApp Image 2026-06-06 at 10.43.40.jpeg": {
+    "status": "success",
+    "data": {
+      "invoice_no": "INV-20240703-5051",
+      "date": "03-07-2024",
+      "description": "General Cargo",
+      "from": "Bangalore",
+      "to": "Pune",
+      "gst_no": "07ABCDE1234F1Z1",
+      "lorry_no": "KA1XC9248",
+      "amount": "19,059.72",
+      "grand_total": "25,189.33"
+    }
+  },
+  "WhatsApp Image 2026-05-30 at 12.49.55.jpeg": {
+    "status": "success",
+    "data": {
+      "invoice_no": "BRL/24-25/1024",
+      "date": "15/05/2024",
+      "description": "Cotton Fabric Bales",
+      "from": "Ludhiana",
+      "to": "Mumbai",
+      "gst_no": "07AAACB1234A1Z5",
+      "lorry_no": "HR38AF9643",
+      "amount": "45,000.00",
+      "grand_total": "50,400.00"
+    }
+  },
+  "WhatsApp Image 2026-06-06 at 10.43.41.jpeg": {
+    "status": "success",
+    "data": {
+      "invoice_no": "INV-20240821-3528",
+      "date": "21-08-2024",
+      "description": "INDUSTRIAL MACHINERY PARTS (AS PER CHALLAN NO. 789/24-25)",
+      "from": "KOLKATA",
+      "to": "DELHI",
+      "gst_no": "19ABCDE1234F1Z1",
+      "lorry_no": "KA9BH4647",
+      "amount": "40,998.55",
+      "grand_total": "61,565.81"
+    }
+  },
+  "WhatsApp Image 2026-05-30 at 12.49.56 (1).jpeg": {
+    "status": "success",
+    "data": {
+      "invoice_no": "HR-442",
+      "date": "12/05/2024",
+      "description": "Wooden Chairs & Tables",
+      "from": "Delhi",
+      "to": "Jaipur",
+      "gst_no": "07CCCCD4433E1Z9",
+      "lorry_no": "DL1GC 7788",
+      "amount": "25,000",
+      "grand_total": "28,000"
+    }
+  },
+  "WhatsApp Image 2026-06-06 at 10.43.41 (1).jpeg": {
+    "status": "success",
+    "data": {
+      "invoice_no": "INV-20240805-5895",
+      "date": "05-08-2024",
+      "description": "Transportation Charges (By Road)",
+      "from": "Noida",
+      "to": "Delhi",
+      "gst_no": "07ABCDE1234F1Z4",
+      "lorry_no": "KA2CX1170",
+      "amount": "26,227.17",
+      "grand_total": "27,538.53"
+    }
+  },
+  "WhatsApp Image 2026-06-06 at 10.43.40 (1).jpeg": {
+    "status": "success",
+    "data": {
+      "invoice_no": "INV-20240111-2464",
+      "date": "11-01-2024",
+      "description": "General Cargo / Cartons, Contents: Household Items (Packed)",
+      "from": "Noida",
+      "to": "Delhi",
+      "gst_no": "29ABCDE1234F1Z9",
+      "lorry_no": "KA9RL8868",
+      "amount": "21029.20",
+      "grand_total": "26491.04"
+    }
+  },
+  "WhatsApp Image 2026-06-07 at 14.30.26.jpeg": {
+    "status": "success",
+    "data": {
+      "invoice_no": "SRR/2024/089",
+      "date": "12/06/2024",
+      "description": "Freight Charges, Loading & Unloading Charges",
+      "from": "Bhiwandi",
+      "to": "Kalyan",
+      "gst_no": "27AABSR1234C1Z5",
+      "lorry_no": "MH 12 AB 1234",
+      "amount": "30,000.00",
+      "grand_total": "30,000.00"
+    }
+  },
+  "WhatsApp Image 2026-06-07 at 15.01.05.jpeg": {
+    "status": "success",
+    "data": {
+      "invoice_no": "KTC/2024/445",
+      "date": "18/06/2024",
+      "description": "Industrial Spare Parts",
+      "from": "Ludhiana",
+      "to": "Delhi",
+      "gst_no": "06AABCK4521P1Z3",
+      "lorry_no": "HR 31 AB 5555",
+      "amount": "22,500.00",
+      "grand_total": "26,550.00"
+    }
+  },
+  "WhatsApp Image 2026-06-07 at 15.19.29.jpeg": {
+    "status": "success",
+    "data": {
+      "invoice_no": "BLP/2024/778",
+      "date": "07/06/2026",
+      "description": "Cotton Fabric Bales",
+      "from": "Surat",
+      "to": "Mumbai",
+      "gst_no": "29ABICA1234B1G5",
+      "lorry_no": "GJ 05 BK 7734",
+      "amount": "45,000.00",
+      "grand_total": "53,100.00"
+    }
+  },
+  "WhatsApp Image 2026-06-07 at 15.41.10.jpeg": {
+    "status": "success",
+    "data": {
+      "invoice_no": "SGT/2024/313",
+      "date": "14/08/2024",
+      "description": "Pharmaceutical Goods",
+      "from": "Ahmedabad",
+      "to": "Rajkot",
+      "gst_no": "24AACSG7891K1Z6",
+      "lorry_no": "hr 31 b 2122",
+      "amount": "18,000.00",
+      "grand_total": "21,240.00"
+    }
+  },
+  "WhatsApp Image 2026-06-07 at 15.55.33.jpeg": {
+    "status": "success",
+    "data": {
+      "invoice_no": "13589",
+      "date": "15/07/2024",
+      "description": "Surat - Mumbai, Mumbai - Pune",
+      "from": "Surat, Mumbai",
+      "to": "Mumbai, Pune",
+      "gst_no": "24AACF7823R1ZS",
+      "lorry_no": "GJ-05-BK-7734",
+      "amount": "49,000/-",
+      "grand_total": "39,000/-"
+    }
+  },
+  "retry_TEST-001_2026-06-08 15:22:55": {
+    "status": "success",
+    "data": {
+      "invoice_no": "TEST-001",
+      "date": "01/01/2024",
+      "description": "Test",
+      "from": "Delhi",
+      "to": "Mumbai",
+      "gst_no": "",
+      "lorry_no": "",
+      "amount": "1000",
+      "grand_total": "1000"
+    }
+  }
+}
