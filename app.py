@@ -4,6 +4,7 @@ import os
 import requests
 import json
 from datetime import datetime
+import re
 
 app = Flask(__name__)
 
@@ -55,6 +56,14 @@ def set_client(phone, sheet_id):
         "month": datetime.now().strftime("%Y-%m")
     }
     save_clients(clients)
+
+
+
+def extract_sheet_id(text):
+    match = re.search(r'/d/([a-zA-Z0-9_-]+)', text)
+    if match:
+        return match.group(1)
+    return text.strip()
 
 
 def send_whatsapp_message(phone, message, token):
@@ -127,7 +136,7 @@ def whatsapp():
 
             # SHEET command
             if text.upper().startswith("SHEET:"):
-                sheet_id = text[6:].strip()
+                sheet_id = extract_sheet_id(text[6:].strip())
                 set_client(phone, sheet_id)
                 send_whatsapp_message(phone, "✅ Sheet ID save ho gayi!\nAb invoice photos bhejo 📊", token)
                 return jsonify({"status": "sheet_saved"}), 200
