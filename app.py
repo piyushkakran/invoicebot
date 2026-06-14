@@ -3,8 +3,8 @@ from gemini_test import extract_only, save_to_sheet, DuplicateInvoiceError
 import os
 import requests
 import json
-from datetime import datetime
 import re
+from datetime import datetime
 
 app = Flask(__name__)
 
@@ -22,7 +22,6 @@ FIELDS = [
     ("grand_total", "Grand Total")
 ]
 
-# In-memory pending data store
 pending_sessions = {}
 
 DEFAULT_CLIENTS = {
@@ -58,7 +57,6 @@ def set_client(phone, sheet_id):
     save_clients(clients)
 
 
-
 def extract_sheet_id(text):
     match = re.search(r'/d/([a-zA-Z0-9_-]+)', text)
     if match:
@@ -83,15 +81,68 @@ def send_whatsapp_message(phone, message, token):
     )
 
 
-def format_extracted_data(data):
-    lines = ["✅ *Invoice Extract Hua!*\n"]
+def get_missing_fields(data):
+    """Return list of (index, key, label) for missing fields"""
+    missing = []
+    for i, (key, label) in enumerate(FIELDS, 1):
+        value = data.get(key)
+        if not value or str(value).strip() == "":
+            missing.append((i, key, label))
+    return missing
+
+
+def format_missing_fields_prompt(data):
+    missing = get_missing_fields(data)
+    lines = ["⚠️ *Kuch fields missing hain!*\n"]
+    lines.append("Extracted data:")
     for i, (key, label) in enumerate(FIELDS, 1):
         value = data.get(key) or "⚠️ MISSING"
         lines.append(f"{i}. {label}: {value}")
+    lines.append("\n✏️ Missing fields fill karo:")
+    for i, key, label in missing:
+        lines.append(f"CHANGE {i} <value>")
+    lines.append("\nExample:")
+    example_lines = "\n".join([f"CHANGE {i} value{i}" for i, _, _ in missing[:2]])
+    lines.append(example_lines)
+    lines.append("\n(Ek message mein multiple lines bhej sakte ho)")
+    return "\n".join(lines)
+
+
+def format_extracted_data(data):
+    missing = get_missing_fields(data)
+    if missing:
+        return format_missing_fields_prompt(data)
+
+    lines = ["✅ *Invoice Extract Hua!*\n"]
+    for i, (key, label) in enumerate(FIELDS, 1):
+        value = data.get(key)
+        lines.append(f"{i}. {label}: {value}")
     lines.append("\n✅ Sahi hai? *OK* bhejo")
-    lines.append("✏️ Koi field change karni hai? *CHANGE 3* bhejo (field number ke saath)")
+    lines.append("✏️ Koi field change karni hai? *CHANGE 3 <value>* bhejo")
     lines.append("❌ Save nahi karna? *CANCEL* bhejo")
     return "\n".join(lines)
+
+
+def process_change_lines(text, data):
+    """Process one or more CHANGE lines, returns updated data and list of updates made"""
+    lines = text.strip().split("\n")
+    updates = []
+    for line in lines:
+        line = line.strip()
+        if not line.upper().startswith("CHANGE"):
+            continue
+        parts = line.split(" ", 2)
+        if len(parts) >= 3:
+            try:
+                field_num = int(parts[1])
+                new_value = parts[2].strip()
+                if 1 <= field_num <= len(FIELDS):
+                    key, label = FIELDS[field_num - 1]
+                    data[key] = new_value
+                    updates.append((label, new_value))
+            except ValueError:
+                continue
+    return data, updates
 
 
 def check_month_change(phone, token):
@@ -102,9 +153,9 @@ def check_month_change(phone, token):
     if client.get("month") != current_month:
         send_whatsapp_message(
             phone,
-            f"📅 Naya mahina! ({current_month})\n\n"
-            f"1️⃣ Nayi sheet: SHEET: <id>\n"
-            f"2️⃣ Purani sheet: SAME",
+            f"📅 New month! ({current_month})\n\n"
+            f"1️⃣ New sheet: SHEET: <link>\n"
+            f"2️⃣ Same sheet: SAME",
             token
         )
         return True
@@ -126,140 +177,120 @@ def whatsapp():
     data = request.json
     token = os.environ.get("WHATSAPP_TOKEN")
 
+    WELCOME_MESSAGE = """👋 *Welcome to InvoiceBot!*
+
+Setup steps:
+1️⃣ Open your Google Sheet
+2️⃣ Click Share
+3️⃣ Add this email with Editor access:
+invoicebot-sheets@invoicebot2-493606.iam.gserviceaccount.com
+4️⃣ Copy your Sheet link
+5️⃣ Send it here as: SHEET: <link>
+
+That's it! Then just send invoice photos 📸"""
+
     try:
         message = data["entry"][0]["changes"][0]["value"]["messages"][0]
         phone = message["from"]
 
-        # ✅ Text message handling
         if message["type"] == "text":
             text = message["text"]["body"].strip()
+            text_upper = text.upper()
 
             # SHEET command
-            if text.upper().startswith("SHEET:"):
+            if text_upper.startswith("SHEET:"):
                 sheet_id = extract_sheet_id(text[6:].strip())
                 set_client(phone, sheet_id)
-                send_whatsapp_message(phone, "✅ Sheet ID save ho gayi!\nAb invoice photos bhejo 📊", token)
+                send_whatsapp_message(phone, "✅ Sheet linked successfully!\nNow send invoice photos 📊", token)
                 return jsonify({"status": "sheet_saved"}), 200
 
             # SAME command
-            elif text.upper() == "SAME":
+            elif text_upper == "SAME":
                 client = get_client(phone)
                 if client:
                     clients = load_clients()
                     clients[phone]["month"] = datetime.now().strftime("%Y-%m")
                     save_clients(clients)
-                    send_whatsapp_message(phone, "✅ Purani sheet continue!\nInvoice bhejo 📸", token)
+                    send_whatsapp_message(phone, "✅ Continuing with same sheet!\nSend invoice photos 📸", token)
                 return jsonify({"status": "same_sheet"}), 200
 
-            # OK — save karo
-            elif text.upper() == "OK":
+            # OK — save
+            elif text_upper == "OK":
                 session = pending_sessions.get(phone)
                 if not session:
-                    send_whatsapp_message(phone, "⚠️ Koi pending invoice nahi hai.\nPehle invoice photo bhejo!", token)
+                    send_whatsapp_message(phone, "⚠️ No pending invoice.\nSend an invoice photo first!", token)
                     return jsonify({"status": "no_pending"}), 200
+
+                missing = get_missing_fields(session["data"])
+                if missing:
+                    send_whatsapp_message(phone, format_missing_fields_prompt(session["data"]), token)
+                    return jsonify({"status": "still_missing"}), 200
 
                 try:
                     save_to_sheet(session["data"], session["sheet_id"])
                     del pending_sessions[phone]
-                    send_whatsapp_message(phone, "✅ Google Sheet mein save ho gaya!", token)
+                    send_whatsapp_message(phone, "✅ Saved to Google Sheet!", token)
                 except DuplicateInvoiceError:
                     send_whatsapp_message(
                         phone,
-                        "⚠️ Yeh invoice already save hai!\n\nPhir bhi save karein? *DUPLICATE_OK* bhejo\nCancel karein? *CANCEL* bhejo",
+                        "⚠️ This invoice already exists!\n\nSave anyway? *DUPLICATE_OK*\nCancel? *CANCEL*",
                         token
                     )
                 return jsonify({"status": "saved"}), 200
 
             # DUPLICATE_OK
-            elif text.upper() == "DUPLICATE_OK":
+            elif text_upper == "DUPLICATE_OK":
                 session = pending_sessions.get(phone)
                 if session:
                     save_to_sheet(session["data"], session["sheet_id"], allow_duplicate=True)
                     del pending_sessions[phone]
-                    send_whatsapp_message(phone, "✅ Duplicate — phir bhi save ho gaya!", token)
+                    send_whatsapp_message(phone, "✅ Saved (duplicate allowed)!", token)
                 return jsonify({"status": "duplicate_saved"}), 200
 
             # CANCEL
-            elif text.upper() == "CANCEL":
+            elif text_upper == "CANCEL":
                 if phone in pending_sessions:
                     del pending_sessions[phone]
-                send_whatsapp_message(phone, "❌ Invoice cancel kar diya.", token)
+                send_whatsapp_message(phone, "❌ Invoice cancelled.", token)
                 return jsonify({"status": "cancelled"}), 200
 
-            # CHANGE <number> <new_value>
-            elif text.upper().startswith("CHANGE"):
+            # CHANGE (single or multi-line)
+            elif text_upper.startswith("CHANGE") or "\nCHANGE" in text_upper or "\ncHANGE" in text:
                 session = pending_sessions.get(phone)
                 if not session:
-                    send_whatsapp_message(phone, "⚠️ Koi pending invoice nahi.\nPehle invoice photo bhejo!", token)
+                    send_whatsapp_message(phone, "⚠️ No pending invoice.\nSend an invoice photo first!", token)
                     return jsonify({"status": "no_pending"}), 200
 
-                parts = text.split(" ", 2)
-                if len(parts) == 2:
-                    # Sirf number diya — bot poochega value
-                    try:
-                        field_num = int(parts[1])
-                        if 1 <= field_num <= len(FIELDS):
-                            key, label = FIELDS[field_num - 1]
-                            pending_sessions[phone]["waiting_for"] = key
-                            pending_sessions[phone]["waiting_label"] = label
-                            send_whatsapp_message(phone, f"✏️ {label} ka naya value bhejo:", token)
-                        else:
-                            send_whatsapp_message(phone, "❌ Galat number! 1-9 ke beech daalo.", token)
-                    except ValueError:
-                        send_whatsapp_message(phone, "❌ Format: CHANGE 3\nYa: CHANGE 3 naya_value", token)
-                    return jsonify({"status": "waiting_value"}), 200
+                updated_data, updates = process_change_lines(text, session["data"])
 
-                elif len(parts) == 3:
-                    # Number aur value dono diye
-                    try:
-                        field_num = int(parts[1])
-                        new_value = parts[2].strip()
-                        if 1 <= field_num <= len(FIELDS):
-                            key, label = FIELDS[field_num - 1]
-                            pending_sessions[phone]["data"][key] = new_value
-                            send_whatsapp_message(
-                                phone,
-                                f"✅ {label} update hua: {new_value}\n\n" + format_extracted_data(pending_sessions[phone]["data"]),
-                                token
-                            )
-                        else:
-                            send_whatsapp_message(phone, "❌ Galat number!", token)
-                    except ValueError:
-                        send_whatsapp_message(phone, "❌ Format: CHANGE 3 naya_value", token)
-                    return jsonify({"status": "field_changed"}), 200
+                if not updates:
+                    send_whatsapp_message(phone, "❌ Format: CHANGE 3 <value>\n(One per line for multiple)", token)
+                    return jsonify({"status": "no_updates"}), 200
 
-            # Waiting for value after CHANGE <num>
-            elif phone in pending_sessions and pending_sessions[phone].get("waiting_for"):
-                key = pending_sessions[phone]["waiting_for"]
-                label = pending_sessions[phone]["waiting_label"]
-                pending_sessions[phone]["data"][key] = text
-                del pending_sessions[phone]["waiting_for"]
-                del pending_sessions[phone]["waiting_label"]
+                pending_sessions[phone]["data"] = updated_data
+
+                summary = "\n".join([f"✅ {label} → {value}" for label, value in updates])
                 send_whatsapp_message(
                     phone,
-                    f"✅ {label} update hua: {text}\n\n" + format_extracted_data(pending_sessions[phone]["data"]),
+                    summary + "\n\n" + format_extracted_data(updated_data),
                     token
                 )
-                return jsonify({"status": "value_updated"}), 200
+                return jsonify({"status": "field_changed"}), 200
 
-            # Koi aur text
+            # Other text
             else:
                 client = get_client(phone)
                 if not client:
-                    send_whatsapp_message(
-                        phone,
-                        "👋 InvoiceBot mein swagat!\n\nPehle sheet ID bhejo:\nSHEET: <your_sheet_id>",
-                        token
-                    )
+                    send_whatsapp_message(phone, WELCOME_MESSAGE, token)
                 else:
-                    send_whatsapp_message(phone, "📸 Invoice ki photo bhejo!", token)
+                    send_whatsapp_message(phone, "📸 Send an invoice photo!", token)
                 return jsonify({"status": "instructions_sent"}), 200
 
-        # ✅ Image handling
+        # Image handling
         if message["type"] == "image":
             client = get_client(phone)
             if not client:
-                send_whatsapp_message(phone, "⚠️ Pehle sheet ID bhejo:\nSHEET: <your_sheet_id>", token)
+                send_whatsapp_message(phone, WELCOME_MESSAGE, token)
                 return jsonify({"status": "no_sheet_id"}), 200
 
             if check_month_change(phone, token):
@@ -275,8 +306,8 @@ def whatsapp():
             image_url = url_response.json().get("url")
 
             if not image_url:
-                send_whatsapp_message(phone, "❌ Image download nahi hui — dobara bhejo.", token)
-                return jsonify({"error": "Image URL nahi mili"}), 500
+                send_whatsapp_message(phone, "❌ Could not download image — try again.", token)
+                return jsonify({"error": "Image URL not found"}), 500
 
             image_response = requests.get(image_url, headers={"Authorization": f"Bearer {token}"})
             image_path = f"temp_{phone}.jpg"
@@ -286,16 +317,14 @@ def whatsapp():
             try:
                 result = extract_only(image_path=image_path)
             except Exception as e:
-                send_whatsapp_message(phone, "❌ Invoice read nahi hua — dobara bhejo.", token)
+                send_whatsapp_message(phone, "❌ Could not read invoice — try again.", token)
                 return jsonify({"error": str(e)}), 500
 
-            # Pending session mein store karo
             pending_sessions[phone] = {
                 "data": result,
                 "sheet_id": sheet_id
             }
 
-            # Data dikhao aur confirm maango
             send_whatsapp_message(phone, format_extracted_data(result), token)
 
             if os.path.exists(image_path):
