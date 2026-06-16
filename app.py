@@ -23,6 +23,7 @@ FIELDS = [
 ]
 
 pending_sessions = {}
+processed_message_ids = set()
 
 DEFAULT_CLIENTS = {
     "919991997358": {
@@ -177,21 +178,36 @@ def whatsapp():
     data = request.json
     token = os.environ.get("WHATSAPP_TOKEN")
 
-    WELCOME_MESSAGE = """👋 *Welcome to InvoiceBot!*
+    WELCOME_MESSAGE_PART1 = """👋 *Welcome to InvoiceBot!*
 
 Setup steps:
 1️⃣ Open your Google Sheet
 2️⃣ Click Share
-3️⃣ Add this email with Editor access:
-invoicebot-sheets@invoicebot2-493606.iam.gserviceaccount.com
-4️⃣ Copy your Sheet link
+3️⃣ Add this email below with Editor access (tap and hold to copy):"""
+
+    WELCOME_EMAIL_ONLY = "invoicebot-sheets@invoicebot2-493606.iam.gserviceaccount.com"
+
+    WELCOME_MESSAGE_PART2 = """4️⃣ Copy your Sheet link
 5️⃣ Send it here as: SHEET: <link>
 
 That's it! Then just send invoice photos 📸"""
 
+    def send_welcome(phone, token):
+        send_whatsapp_message(phone, WELCOME_MESSAGE_PART1, token)
+        send_whatsapp_message(phone, WELCOME_EMAIL_ONLY, token)
+        send_whatsapp_message(phone, WELCOME_MESSAGE_PART2, token)
+
     try:
         message = data["entry"][0]["changes"][0]["value"]["messages"][0]
         phone = message["from"]
+        msg_id = message.get("id")
+
+        if msg_id:
+            if msg_id in processed_message_ids:
+                return jsonify({"status": "duplicate_ignored"}), 200
+            processed_message_ids.add(msg_id)
+            if len(processed_message_ids) > 500:
+                processed_message_ids.clear()
 
         if message["type"] == "text":
             text = message["text"]["body"].strip()
@@ -281,7 +297,7 @@ That's it! Then just send invoice photos 📸"""
             else:
                 client = get_client(phone)
                 if not client:
-                    send_whatsapp_message(phone, WELCOME_MESSAGE, token)
+                    send_welcome(phone, token)
                 else:
                     send_whatsapp_message(phone, "📸 Send an invoice photo!", token)
                 return jsonify({"status": "instructions_sent"}), 200
@@ -290,7 +306,7 @@ That's it! Then just send invoice photos 📸"""
         if message["type"] == "image":
             client = get_client(phone)
             if not client:
-                send_whatsapp_message(phone, WELCOME_MESSAGE, token)
+                send_welcome(phone, token)
                 return jsonify({"status": "no_sheet_id"}), 200
 
             if check_month_change(phone, token):
