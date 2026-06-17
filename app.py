@@ -1,6 +1,11 @@
 from flask import Flask, request, jsonify
-from gemini_test import extract_only, save_to_sheet, DuplicateInvoiceError, get_client_fields, set_client_fields, set_onboarding_state, detect_schema_from_photo
-import os
+from gemini_test import (
+    extract_only,
+    save_to_sheet,
+    DuplicateInvoiceError,
+    detect_schema_from_photo
+)
+import os 
 import requests
 import json
 import re
