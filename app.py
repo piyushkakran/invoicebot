@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify
-from gemini_test import extract_only, save_to_sheet, DuplicateInvoiceError
+from gemini_test import extract_only, save_to_sheet, DuplicateInvoiceError, get_client_fields, set_client_fields, set_onboarding_state, detect_schema_from_photo
 import os
 import requests
 import json
@@ -10,25 +10,17 @@ app = Flask(__name__)
 
 CLIENTS_FILE = "clients.json"
 
-FIELDS = [
-    ("invoice_no", "Invoice No"),
-    ("date", "Date"),
-    ("description", "Description"),
-    ("from", "From"),
-    ("to", "To"),
-    ("gst_no", "GST No"),
-    ("lorry_no", "Lorry No"),
-    ("amount", "Amount"),
-    ("grand_total", "Grand Total")
-]
-
 pending_sessions = {}
+pending_schema_detection = {}
+pending_sheet_change = {}
 processed_message_ids = set()
 
 DEFAULT_CLIENTS = {
     "919991997358": {
         "sheet_id": "1WKFiRahwi8V6JxoU1ZmIUqXqFnAVDZvY0uuyf0c3I40",
-        "month": "2026-06"
+        "month": "2026-06",
+        "fields": ["Invoice No", "Date", "Description", "From", "To", "GST No", "Lorry No", "Amount", "Grand Total"],
+        "onboarding_state": None
     }
 }
 
@@ -36,8 +28,12 @@ DEFAULT_CLIENTS = {
 def load_clients():
     if os.path.exists(CLIENTS_FILE):
         with open(CLIENTS_FILE, "r") as f:
-            return {**DEFAULT_CLIENTS, **json.load(f)}
-    return DEFAULT_CLIENTS
+            loaded = json.load(f)
+        for phone, default in DEFAULT_CLIENTS.items():
+            if phone not in loaded or "fields" not in loaded.get(phone, {}):
+                loaded[phone] = default
+        return loaded
+    return DEFAULT_CLIENTS.copy()
 
 
 def save_clients(clients):
@@ -49,12 +45,37 @@ def get_client(phone):
     return load_clients().get(phone)
 
 
-def set_client(phone, sheet_id):
+def set_client(phone, sheet_id, keep_schema=False):
     clients = load_clients()
-    clients[phone] = {
-        "sheet_id": sheet_id,
-        "month": datetime.now().strftime("%Y-%m")
-    }
+    if phone not in clients:
+        clients[phone] = {}
+    clients[phone]["sheet_id"] = sheet_id
+    clients[phone]["month"] = datetime.now().strftime("%Y-%m")
+    if not keep_schema:
+        clients[phone]["fields"] = None
+        clients[phone]["onboarding_state"] = "awaiting_mode"
+    save_clients(clients)
+
+
+def set_onboarding_state(phone, state):
+    clients = load_clients()
+    if phone in clients:
+        clients[phone]["onboarding_state"] = state
+    else:
+        clients[phone] = {"onboarding_state": state}
+    save_clients(clients)
+
+
+def get_client_fields(phone):
+    client = get_client(phone)
+    return client.get("fields") if client else None
+
+
+def set_client_fields(phone, fields_list):
+    clients = load_clients()
+    if phone in clients:
+        clients[phone]["fields"] = [f.strip() for f in fields_list if f.strip()]
+        clients[phone]["onboarding_state"] = None
     save_clients(clients)
 
 
@@ -82,50 +103,115 @@ def send_whatsapp_message(phone, message, token):
     )
 
 
-def get_missing_fields(data):
-    """Return list of (index, key, label) for missing fields"""
+def handle_onboarding(phone, text, token, is_image=False):
+    client = get_client(phone)
+    state = client.get("onboarding_state") if client else None
+    if not state:
+        return False
+
+    text_upper = (text or "").strip().upper()
+
+    if state == "awaiting_mode":
+        if "MANUAL" in text_upper:
+            set_onboarding_state(phone, "awaiting_manual_fields")
+            send_whatsapp_message(phone, "✏️ Comma-separated field names bhejo (e.g. Invoice No, Date, Lorry No, Amount, From, To)", token)
+            return True
+        elif "PHOTO" in text_upper:
+            set_onboarding_state(phone, "awaiting_photo")
+            send_whatsapp_message(phone, "📸 Apni Excel/register ki photo bhejo (column headers ke saath)", token)
+            return True
+        else:
+            send_whatsapp_message(phone, "❌ MANUAL ya PHOTO likho", token)
+            return True
+
+    elif state == "awaiting_manual_fields":
+        fields = [f.strip() for f in text.split(",") if f.strip()]
+        if len(fields) < 2:
+            send_whatsapp_message(phone, "❌ Kam se kam 2 fields chahiye. Dobara bhejo.", token)
+            return True
+        set_client_fields(phone, fields)
+        send_whatsapp_message(phone, f"✅ Fields set ho gaye!\n{', '.join(fields)}\n\nAb invoice photos bhej sakte ho 📸", token)
+        return True
+
+    elif state == "awaiting_photo":
+        if not is_image:
+            if "MANUAL" in text_upper:
+                set_onboarding_state(phone, "awaiting_manual_fields")
+                send_whatsapp_message(phone, "✏️ Comma-separated field names bhejo", token)
+            else:
+                send_whatsapp_message(phone, "📸 Photo bhejo ya MANUAL likho", token)
+            return True
+        return False
+
+    elif state == "awaiting_photo_confirm":
+        if "CONFIRM" in text_upper:
+            detected = pending_schema_detection.get(phone)
+            if detected:
+                set_client_fields(phone, detected)
+                send_whatsapp_message(phone, f"✅ Fields confirmed!\n{', '.join(detected)}", token)
+                pending_schema_detection.pop(phone, None)
+            return True
+        elif text_upper.startswith("CHANGE "):
+            new_fields = [f.strip() for f in text[7:].split(",") if f.strip()]
+            if len(new_fields) >= 2:
+                set_client_fields(phone, new_fields)
+                pending_schema_detection.pop(phone, None)
+                send_whatsapp_message(phone, f"✅ Fields updated!\n{', '.join(new_fields)}", token)
+            return True
+        return False
+
+    elif state == "awaiting_schema_change":
+        fields = [f.strip() for f in text.split(",") if f.strip()] if text else []
+        if len(fields) >= 2:
+            set_client_fields(phone, fields)
+            send_whatsapp_message(phone, f"✅ Schema updated!\n{', '.join(fields)}", token)
+        return True
+
+    elif state == "awaiting_schema_reuse_choice":
+        if "SAME SCHEMA" in text_upper:
+            sheet_id = pending_sheet_change.pop(phone, None)
+            if sheet_id:
+                clients = load_clients()
+                clients[phone]["sheet_id"] = sheet_id
+                clients[phone]["month"] = datetime.now().strftime("%Y-%m")
+                clients[phone]["onboarding_state"] = None
+                save_clients(clients)
+                send_whatsapp_message(phone, "✅ Same schema with new sheet activated!", token)
+            return True
+        elif "NEW SCHEMA" in text_upper:
+            sheet_id = pending_sheet_change.pop(phone, None)
+            if sheet_id:
+                set_client(phone, sheet_id, keep_schema=False)
+                send_whatsapp_message(phone, "MANUAL ya PHOTO bhejo for new schema", token)
+            return True
+        return False
+
+    return False
+
+
+def format_extracted_data(data, client_fields):
+    lines = ["✅ *Invoice Extract Hua!*\n"]
+    for i, label in enumerate(client_fields, 1):
+        key = label.lower().replace(" ", "_")
+        value = data.get(key) or "⚠️ MISSING"
+        lines.append(f"{i}. {label}: {value}")
+    lines.append("\n✅ Sahi hai? *OK* bhejo")
+    lines.append(f"✏️ Change? *CHANGE 1-{len(client_fields)} <value>* bhejo")
+    lines.append("❌ *CANCEL* bhejo")
+    return "\n".join(lines)
+
+
+def get_missing_fields(data, client_fields):
     missing = []
-    for i, (key, label) in enumerate(FIELDS, 1):
+    for i, label in enumerate(client_fields, 1):
+        key = label.lower().replace(" ", "_")
         value = data.get(key)
         if not value or str(value).strip() == "":
             missing.append((i, key, label))
     return missing
 
 
-def format_missing_fields_prompt(data):
-    missing = get_missing_fields(data)
-    lines = ["⚠️ *Kuch fields missing hain!*\n"]
-    lines.append("Extracted data:")
-    for i, (key, label) in enumerate(FIELDS, 1):
-        value = data.get(key) or "⚠️ MISSING"
-        lines.append(f"{i}. {label}: {value}")
-    lines.append("\n✏️ Missing fields fill karo:")
-    for i, key, label in missing:
-        lines.append(f"CHANGE {i} <value>")
-    lines.append("\nExample:")
-    example_lines = "\n".join([f"CHANGE {i} value{i}" for i, _, _ in missing[:2]])
-    lines.append(example_lines)
-    lines.append("\n(Ek message mein multiple lines bhej sakte ho)")
-    return "\n".join(lines)
-
-
-def format_extracted_data(data):
-    missing = get_missing_fields(data)
-    if missing:
-        return format_missing_fields_prompt(data)
-
-    lines = ["✅ *Invoice Extract Hua!*\n"]
-    for i, (key, label) in enumerate(FIELDS, 1):
-        value = data.get(key)
-        lines.append(f"{i}. {label}: {value}")
-    lines.append("\n✅ Sahi hai? *OK* bhejo")
-    lines.append("✏️ Koi field change karni hai? *CHANGE 3 <value>* bhejo")
-    lines.append("❌ Save nahi karna? *CANCEL* bhejo")
-    return "\n".join(lines)
-
-
-def process_change_lines(text, data):
-    """Process one or more CHANGE lines, returns updated data and list of updates made"""
+def process_change_lines(text, data, client_fields):
     lines = text.strip().split("\n")
     updates = []
     for line in lines:
@@ -137,8 +223,9 @@ def process_change_lines(text, data):
             try:
                 field_num = int(parts[1])
                 new_value = parts[2].strip()
-                if 1 <= field_num <= len(FIELDS):
-                    key, label = FIELDS[field_num - 1]
+                if 1 <= field_num <= len(client_fields):
+                    label = client_fields[field_num - 1]
+                    key = label.lower().replace(" ", "_")
                     data[key] = new_value
                     updates.append((label, new_value))
             except ValueError:
@@ -183,18 +270,12 @@ def whatsapp():
 Setup steps:
 1️⃣ Open your Google Sheet
 2️⃣ Click Share
-3️⃣ Add this email below with Editor access (tap and hold to copy):"""
+3️⃣ Add this email: invoicebot-sheets@invoicebot2-493606.iam.gserviceaccount.com"""
 
-    WELCOME_EMAIL_ONLY = "invoicebot-sheets@invoicebot2-493606.iam.gserviceaccount.com"
-
-    WELCOME_MESSAGE_PART2 = """4️⃣ Copy your Sheet link
-5️⃣ Send it here as: SHEET: <link>
-
-That's it! Then just send invoice photos 📸"""
+    WELCOME_MESSAGE_PART2 = """4️⃣ Send sheet link as: SHEET: <link>"""
 
     def send_welcome(phone, token):
         send_whatsapp_message(phone, WELCOME_MESSAGE_PART1, token)
-        send_whatsapp_message(phone, WELCOME_EMAIL_ONLY, token)
         send_whatsapp_message(phone, WELCOME_MESSAGE_PART2, token)
 
     try:
@@ -209,6 +290,7 @@ That's it! Then just send invoice photos 📸"""
             if len(processed_message_ids) > 500:
                 processed_message_ids.clear()
 
+        # Text message handling
         if message["type"] == "text":
             text = message["text"]["body"].strip()
             text_upper = text.upper()
@@ -216,12 +298,24 @@ That's it! Then just send invoice photos 📸"""
             # SHEET command
             if text_upper.startswith("SHEET:"):
                 sheet_id = extract_sheet_id(text[6:].strip())
-                set_client(phone, sheet_id)
-                send_whatsapp_message(phone, "✅ Sheet linked successfully!\nNow send invoice photos 📊", token)
+                client = get_client(phone)
+                if client and client.get("fields"):
+                    pending_sheet_change[phone] = sheet_id
+                    set_onboarding_state(phone, "awaiting_schema_reuse_choice")
+                    send_whatsapp_message(phone, "Aapka purana schema use karna hai?\n\nReply:\nSAME SCHEMA\nNEW SCHEMA", token)
+                else:
+                    set_client(phone, sheet_id)
+                    send_whatsapp_message(phone, "✅ Sheet linked!\n\nMANUAL ya PHOTO bhejo schema set karne ke liye", token)
                 return jsonify({"status": "sheet_saved"}), 200
 
+            # CHANGE FIELDS
+            if text_upper.startswith("CHANGE FIELDS"):
+                set_onboarding_state(phone, "awaiting_schema_change")
+                send_whatsapp_message(phone, "✏️ Naya comma-separated fields list bhejo", token)
+                return jsonify({"status": "change_fields"}), 200
+
             # SAME command
-            elif text_upper == "SAME":
+            if text_upper == "SAME":
                 client = get_client(phone)
                 if client:
                     clients = load_clients()
@@ -230,77 +324,69 @@ That's it! Then just send invoice photos 📸"""
                     send_whatsapp_message(phone, "✅ Continuing with same sheet!\nSend invoice photos 📸", token)
                 return jsonify({"status": "same_sheet"}), 200
 
-            # OK — save
-            elif text_upper == "OK":
+            # OK
+            if text_upper == "OK":
                 session = pending_sessions.get(phone)
                 if not session:
                     send_whatsapp_message(phone, "⚠️ No pending invoice.\nSend an invoice photo first!", token)
                     return jsonify({"status": "no_pending"}), 200
-
-                missing = get_missing_fields(session["data"])
+                client_fields = get_client_fields(phone)
+                missing = get_missing_fields(session["data"], client_fields)
                 if missing:
-                    send_whatsapp_message(phone, format_missing_fields_prompt(session["data"]), token)
+                    send_whatsapp_message(phone, "Kuch fields missing hain. CHANGE use karo.", token)
                     return jsonify({"status": "still_missing"}), 200
-
                 try:
-                    save_to_sheet(session["data"], session["sheet_id"])
+                    save_to_sheet(session["data"], session["sheet_id"], client_fields=client_fields)
                     del pending_sessions[phone]
                     send_whatsapp_message(phone, "✅ Saved to Google Sheet!", token)
                 except DuplicateInvoiceError:
-                    send_whatsapp_message(
-                        phone,
-                        "⚠️ This invoice already exists!\n\nSave anyway? *DUPLICATE_OK*\nCancel? *CANCEL*",
-                        token
-                    )
+                    send_whatsapp_message(phone, "⚠️ This invoice already exists!\n\nSave anyway? *DUPLICATE_OK*\nCancel? *CANCEL*", token)
                 return jsonify({"status": "saved"}), 200
 
             # DUPLICATE_OK
-            elif text_upper == "DUPLICATE_OK":
+            if text_upper == "DUPLICATE_OK":
                 session = pending_sessions.get(phone)
                 if session:
-                    save_to_sheet(session["data"], session["sheet_id"], allow_duplicate=True)
+                    client_fields = get_client_fields(phone)
+                    save_to_sheet(session["data"], session["sheet_id"], allow_duplicate=True, client_fields=client_fields)
                     del pending_sessions[phone]
                     send_whatsapp_message(phone, "✅ Saved (duplicate allowed)!", token)
                 return jsonify({"status": "duplicate_saved"}), 200
 
             # CANCEL
-            elif text_upper == "CANCEL":
+            if text_upper == "CANCEL":
                 if phone in pending_sessions:
                     del pending_sessions[phone]
                 send_whatsapp_message(phone, "❌ Invoice cancelled.", token)
                 return jsonify({"status": "cancelled"}), 200
 
-            # CHANGE (single or multi-line)
-            elif text_upper.startswith("CHANGE") or "\nCHANGE" in text_upper or "\ncHANGE" in text:
+            # CHANGE for invoice fields
+            if text_upper.startswith("CHANGE") or "\nCHANGE" in text_upper:
                 session = pending_sessions.get(phone)
                 if not session:
-                    send_whatsapp_message(phone, "⚠️ No pending invoice.\nSend an invoice photo first!", token)
+                    send_whatsapp_message(phone, "⚠️ No pending invoice.", token)
                     return jsonify({"status": "no_pending"}), 200
-
-                updated_data, updates = process_change_lines(text, session["data"])
-
+                client_fields = get_client_fields(phone)
+                updated_data, updates = process_change_lines(text, session["data"], client_fields)
                 if not updates:
-                    send_whatsapp_message(phone, "❌ Format: CHANGE 3 <value>\n(One per line for multiple)", token)
+                    send_whatsapp_message(phone, "❌ Format: CHANGE 3 <value>", token)
                     return jsonify({"status": "no_updates"}), 200
-
                 pending_sessions[phone]["data"] = updated_data
-
-                summary = "\n".join([f"✅ {label} → {value}" for label, value in updates])
-                send_whatsapp_message(
-                    phone,
-                    summary + "\n\n" + format_extracted_data(updated_data),
-                    token
-                )
+                send_whatsapp_message(phone, "✅ Updated!\n\n" + format_extracted_data(updated_data, client_fields), token)
                 return jsonify({"status": "field_changed"}), 200
 
-            # Other text
+            # Handle onboarding
+            client = get_client(phone)
+            if client and client.get("onboarding_state"):
+                if handle_onboarding(phone, text, token):
+                    return jsonify({"status": "onboarding"}), 200
+
+            # Default text
+            if not client:
+                send_welcome(phone, token)
             else:
-                client = get_client(phone)
-                if not client:
-                    send_welcome(phone, token)
-                else:
-                    send_whatsapp_message(phone, "📸 Send an invoice photo!", token)
-                return jsonify({"status": "instructions_sent"}), 200
+                send_whatsapp_message(phone, "📸 Send invoice photo!", token)
+            return jsonify({"status": "instructions_sent"}), 200
 
         # Image handling
         if message["type"] == "image":
@@ -309,12 +395,57 @@ That's it! Then just send invoice photos 📸"""
                 send_welcome(phone, token)
                 return jsonify({"status": "no_sheet_id"}), 200
 
+            state = client.get("onboarding_state")
+
+            # Wrong state image
+            if state and state not in ["awaiting_photo", "awaiting_photo_confirm"]:
+                send_whatsapp_message(phone, "Abhi text bhejo (MANUAL / PHOTO / SAME SCHEMA etc.)", token)
+                return jsonify({"status": "onboarding_text_expected"}), 200
+
+            # Schema detection photo
+            if state in ["awaiting_photo", "awaiting_photo_confirm"]:
+                media_id = message["image"]["id"]
+                url_response = requests.get(
+                    f"https://graph.facebook.com/v19.0/{media_id}",
+                    headers={"Authorization": f"Bearer {token}"}
+                )
+                image_url = url_response.json().get("url")
+
+                if not image_url:
+                    send_whatsapp_message(phone, "❌ Image download failed.", token)
+                    return jsonify({"error": "no_url"}), 500
+
+                image_response = requests.get(image_url, headers={"Authorization": f"Bearer {token}"})
+                image_path = f"temp_schema_{phone}.jpg"
+                with open(image_path, "wb") as f:
+                    f.write(image_response.content)
+
+                try:
+                    fields = detect_schema_from_photo(image_path)
+                    if fields and len(fields) >= 2:
+                        pending_schema_detection[phone] = fields
+                        set_onboarding_state(phone, "awaiting_photo_confirm")
+                        send_whatsapp_message(phone, f"Detected fields:\n{', '.join(fields)}\n\nCONFIRM bhejo ya CHANGE <new list> bhejo", token)
+                    else:
+                        send_whatsapp_message(phone, "❌ Fields detect nahi hue. MANUAL try karo.", token)
+                except Exception as e:
+                    send_whatsapp_message(phone, "❌ Photo processing failed.", token)
+                finally:
+                    if os.path.exists(image_path):
+                        os.remove(image_path)
+                return jsonify({"status": "schema_detected"}), 200
+
+            # Normal invoice image
             if check_month_change(phone, token):
                 return jsonify({"status": "month_change_pending"}), 200
 
-            sheet_id = client["sheet_id"]
-            media_id = message["image"]["id"]
+            client_fields = get_client_fields(phone)
+            if not client_fields:
+                send_whatsapp_message(phone, "Pehle schema set karo (MANUAL ya PHOTO)", token)
+                return jsonify({"status": "no_fields"}), 200
 
+            # Download invoice image
+            media_id = message["image"]["id"]
             url_response = requests.get(
                 f"https://graph.facebook.com/v19.0/{media_id}",
                 headers={"Authorization": f"Bearer {token}"}
@@ -322,8 +453,8 @@ That's it! Then just send invoice photos 📸"""
             image_url = url_response.json().get("url")
 
             if not image_url:
-                send_whatsapp_message(phone, "❌ Could not download image — try again.", token)
-                return jsonify({"error": "Image URL not found"}), 500
+                send_whatsapp_message(phone, "❌ Could not download image.", token)
+                return jsonify({"error": "no_url"}), 500
 
             image_response = requests.get(image_url, headers={"Authorization": f"Bearer {token}"})
             image_path = f"temp_{phone}.jpg"
@@ -331,17 +462,19 @@ That's it! Then just send invoice photos 📸"""
                 f.write(image_response.content)
 
             try:
-                result = extract_only(image_path=image_path)
+                result = extract_only(image_path=image_path, client_fields=client_fields)
             except Exception as e:
                 send_whatsapp_message(phone, "❌ Could not read invoice — try again.", token)
+                if os.path.exists(image_path):
+                    os.remove(image_path)
                 return jsonify({"error": str(e)}), 500
 
             pending_sessions[phone] = {
                 "data": result,
-                "sheet_id": sheet_id
+                "sheet_id": client["sheet_id"]
             }
 
-            send_whatsapp_message(phone, format_extracted_data(result), token)
+            send_whatsapp_message(phone, format_extracted_data(result, client_fields), token)
 
             if os.path.exists(image_path):
                 os.remove(image_path)
