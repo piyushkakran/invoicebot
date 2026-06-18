@@ -183,7 +183,7 @@ def handle_onboarding(phone, text, token, is_image=False):
             detected = pending_schema_detection.get(phone)
             if detected:
                 set_client_fields(phone, detected)
-                send_whatsapp_message(phone, f"✅ Fields confirmed!\n{', '.join(detected)}", token)
+                send_whatsapp_message(phone, f"✅ Fields confirmed!\n{', '.join(detected)}\n\nAb invoice photos bhej sakte ho 📸", token)
                 pending_schema_detection.pop(phone, None)
             return True
         elif text_upper.startswith("CHANGE "):
@@ -191,7 +191,7 @@ def handle_onboarding(phone, text, token, is_image=False):
             if len(new_fields) >= 2:
                 set_client_fields(phone, new_fields)
                 pending_schema_detection.pop(phone, None)
-                send_whatsapp_message(phone, f"✅ Fields updated!\n{', '.join(new_fields)}", token)
+                send_whatsapp_message(phone, f"✅ Fields updated!\n{', '.join(new_fields)}\n\nAb invoice photos bhej sakte ho 📸", token)
             return True
         return False
 
@@ -607,7 +607,7 @@ Setup steps:
                 detected = pending_schema_detection.get(phone)
                 if detected:
                     set_client_fields(phone, detected)
-                    send_whatsapp_message(phone, f"✅ Fields confirmed!\n{', '.join(detected)}", token)
+                    send_whatsapp_message(phone, f"✅ Fields confirmed!\n{', '.join(detected)}\n\nAb invoice photos bhej sakte ho 📸", token)
                     pending_schema_detection.pop(phone, None)
                 return jsonify({"status": "schema_confirmed"}), 200
 
