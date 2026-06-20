@@ -28,3 +28,4 @@ google-genai
 gspread
 google-auth
 Pillow
+pdf2image

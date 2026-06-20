@@ -3,7 +3,8 @@ from gemini_test import (
     extract_only,
     save_to_sheet,
     DuplicateInvoiceError,
-    detect_schema_from_photo
+    detect_schema_from_photo,
+    pdf_to_image
 )
 import os 
 import requests
@@ -696,6 +697,83 @@ Setup steps:
             image_path = f"temp_{phone}.jpg"
             with open(image_path, "wb") as f:
                 f.write(image_response.content)
+
+            try:
+                result = extract_only(image_path=image_path, client_fields=client_fields)
+            except Exception as e:
+                send_whatsapp_message(phone, "❌ Could not read invoice — try again.", token)
+                if os.path.exists(image_path):
+                    os.remove(image_path)
+                return jsonify({"error": str(e)}), 500
+
+            pending_sessions[phone] = {
+                "data": result,
+                "sheet_id": client["sheet_id"]
+            }
+
+            send_invoice_confirm_buttons(phone, result, client_fields, token)
+
+            if os.path.exists(image_path):
+                os.remove(image_path)
+
+            return jsonify({"status": "extracted_waiting_confirm"}), 200
+
+        # PDF document handling
+        if message["type"] == "document":
+            client = get_client(phone)
+            if not client:
+                send_welcome(phone, token)
+                return jsonify({"status": "no_sheet_id"}), 200
+
+            # Only accept PDFs
+            mime_type = message.get("document", {}).get("mime_type", "")
+            if mime_type != "application/pdf":
+                send_whatsapp_message(phone, "❌ Only PDF files are supported. Please send a PDF or photo of the invoice.", token)
+                return jsonify({"status": "unsupported_document"}), 200
+
+            state = client.get("onboarding_state")
+            if state:
+                send_whatsapp_message(phone, "Abhi photo nahi, pehle diye gaye option choose karo ya text bhejo.", token)
+                return jsonify({"status": "onboarding_text_expected"}), 200
+
+            if check_month_change(phone, token):
+                return jsonify({"status": "month_change_pending"}), 200
+
+            client_fields = get_client_fields(phone)
+            if not client_fields:
+                send_whatsapp_message(phone, "Pehle schema set karo (MANUAL ya PHOTO)", token)
+                return jsonify({"status": "no_fields"}), 200
+
+            # Download PDF
+            media_id = message["document"]["id"]
+            url_response = requests.get(
+                f"https://graph.facebook.com/v19.0/{media_id}",
+                headers={"Authorization": f"Bearer {token}"}
+            )
+            pdf_url = url_response.json().get("url")
+
+            if not pdf_url:
+                send_whatsapp_message(phone, "❌ Could not download PDF.", token)
+                return jsonify({"error": "no_url"}), 500
+
+            pdf_response = requests.get(pdf_url, headers={"Authorization": f"Bearer {token}"})
+            pdf_path = f"temp_{phone}.pdf"
+            image_path = f"temp_{phone}_pdf.jpg"
+
+            with open(pdf_path, "wb") as f:
+                f.write(pdf_response.content)
+
+            try:
+                pdf_to_image(pdf_path, image_path)
+            except Exception as e:
+                send_whatsapp_message(phone, "❌ Could not read PDF — make sure it is a valid invoice PDF.", token)
+                for p in [pdf_path, image_path]:
+                    if os.path.exists(p):
+                        os.remove(p)
+                return jsonify({"error": str(e)}), 500
+            finally:
+                if os.path.exists(pdf_path):
+                    os.remove(pdf_path)
 
             try:
                 result = extract_only(image_path=image_path, client_fields=client_fields)

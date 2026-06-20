@@ -6,6 +6,7 @@ from google import genai
 import PIL.Image
 import gspread
 from google.oauth2.service_account import Credentials
+from pdf2image import convert_from_path
 
 load_dotenv()
 
@@ -14,6 +15,21 @@ BACKUP_FILE = "failed_saves.json"
 
 class DuplicateInvoiceError(Exception):
     pass
+
+
+def pdf_to_image(pdf_path, output_image_path, dpi=150):
+    """
+    Converts the first page of a PDF to a JPEG image for Gemini extraction.
+    Transport invoices are single-page in almost all cases, so we only use
+    page 1. If the PDF has multiple pages, only the first is processed.
+    Returns the output_image_path on success, raises on failure.
+    """
+    pages = convert_from_path(pdf_path, dpi=dpi, first_page=1, last_page=1)
+    if not pages:
+        raise ValueError("PDF has no pages or could not be converted.")
+    pages[0].save(output_image_path, "JPEG")
+    return output_image_path
+
 
 
 def load_backup():
