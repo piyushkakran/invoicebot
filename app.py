@@ -269,6 +269,20 @@ def handle_onboarding(phone, text, token, is_image=False):
     return False
 
 
+def is_valid_invoice(data, client_fields):
+    """
+    Rejects if fewer than half the fields are present.
+    e.g. 9 fields → need at least 4 present, else reject.
+    """
+    if not client_fields:
+        return True
+    present = sum(
+        1 for label in client_fields
+        if str(data.get(label.lower().replace(" ", "_"), "")).strip()
+    )
+    return present >= max(1, len(client_fields) // 2)
+
+
 def format_extracted_data(data, client_fields):
     """Returns just the numbered field list. Confirm/Change/Cancel are now
     presented as buttons (see send_invoice_confirm_buttons), not as text."""
@@ -760,6 +774,12 @@ Setup steps:
                     os.remove(image_path)
                 return jsonify({"error": str(e)}), 500
 
+            if not is_valid_invoice(result, client_fields):
+                send_whatsapp_message(phone, "❌ This doesn't look like an invoice. Please send a clear photo or PDF of your invoice.", token)
+                if os.path.exists(image_path):
+                    os.remove(image_path)
+                return jsonify({"status": "invalid_invoice"}), 200
+
             pending_sessions[phone] = {
                 "data": result,
                 "sheet_id": client["sheet_id"]
@@ -836,6 +856,12 @@ Setup steps:
                 if os.path.exists(image_path):
                     os.remove(image_path)
                 return jsonify({"error": str(e)}), 500
+
+            if not is_valid_invoice(result, client_fields):
+                send_whatsapp_message(phone, "❌ This doesn't look like an invoice. Please send a clear photo or PDF of your invoice.", token)
+                if os.path.exists(image_path):
+                    os.remove(image_path)
+                return jsonify({"status": "invalid_invoice"}), 200
 
             pending_sessions[phone] = {
                 "data": result,
