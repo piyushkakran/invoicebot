@@ -921,6 +921,20 @@ ADMIN_TEMPLATE = """
         .badge-no { background: #f8d7da; color: #721c24; }
         .badge-active { background: #d4edda; color: #155724; }
         .badge-blocked { background: #f8d7da; color: #721c24; }
+        .btn-block, .btn-unblock {
+            border: none;
+            padding: 6px 14px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #fff;
+        }
+        .btn-block { background: #e74c3c; }
+        .btn-block:hover { background: #c0392b; }
+        .btn-unblock { background: #27ae60; }
+        .btn-unblock:hover { background: #219a52; }
+        .btn-block:disabled, .btn-unblock:disabled { opacity: 0.6; cursor: not-allowed; }
         .footer { margin-top: 16px; font-size: 0.75rem; color: #999; }
     </style>
 </head>
@@ -940,6 +954,7 @@ ADMIN_TEMPLATE = """
                 <th>Invoices</th>
                 <th>Schema Set</th>
                 <th>Status</th>
+                <th>Action</th>
             </tr>
         </thead>
         <tbody>
@@ -950,11 +965,45 @@ ADMIN_TEMPLATE = """
                 <td>{{ row.invoice_count }}</td>
                 <td><span class="badge badge-{{ row.schema_class }}">{{ row.schema_set }}</span></td>
                 <td><span class="badge badge-{{ row.status_class }}">{{ row.status }}</span></td>
+                <td>
+                    <button class="btn-{{ 'unblock' if row.blocked else 'block' }}"
+                            data-phone="{{ row.phone }}"
+                            data-action="{{ 'unblock' if row.blocked else 'block' }}"
+                            onclick="toggleBlock(this)">
+                        {{ 'Unblock' if row.blocked else 'Block' }}
+                    </button>
+                </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
     <p class="footer">Auto-refreshes every 60 seconds &middot; {{ now }}</p>
+    <script>
+        const adminKey = new URLSearchParams(window.location.search).get("key");
+
+        async function toggleBlock(btn) {
+            const phone = btn.dataset.phone;
+            const action = btn.dataset.action;
+            btn.disabled = true;
+            try {
+                const res = await fetch("/admin/block?key=" + encodeURIComponent(adminKey), {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ phone: phone, action: action })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert(data.error || "Failed");
+                    btn.disabled = false;
+                }
+            } catch (e) {
+                alert("Request failed");
+                btn.disabled = false;
+            }
+        }
+    </script>
 </body>
 </html>
 """
@@ -995,6 +1044,8 @@ def admin():
             joined_date = "—"
 
         rows.append({
+            "phone": phone,
+            "blocked": blocked,
             "masked_phone": mask_phone(phone),
             "joined_date": joined_date,
             "invoice_count": invoice_count,
@@ -1011,8 +1062,43 @@ def admin():
         active_count=active_count,
         blocked_count=blocked_count,
         rows=rows,
+        admin_key=key,
         now=datetime.now().strftime("%d %b %Y %H:%M:%S"),
     )
+
+
+@app.route("/admin/block", methods=["POST"])
+def admin_block():
+    key = request.args.get("key", "")
+    admin_key = os.environ.get("ADMIN_KEY", "")
+    if not admin_key or key != admin_key:
+        return jsonify({"success": False, "error": "Forbidden"}), 403
+
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"success": False, "error": "Invalid JSON body"}), 400
+
+    phone = str(data.get("phone", "")).strip()
+    action = str(data.get("action", "")).strip().lower()
+
+    if not phone:
+        return jsonify({"success": False, "error": "phone is required"}), 400
+
+    if action not in ("block", "unblock"):
+        return jsonify({"success": False, "error": "action must be 'block' or 'unblock'"}), 400
+
+    clients = load_clients()
+    if phone not in clients:
+        return jsonify({"success": False, "error": "Client not found"}), 404
+
+    clients[phone]["blocked"] = action == "block"
+    save_clients(clients)
+
+    return jsonify({
+        "success": True,
+        "phone": phone,
+        "blocked": clients[phone]["blocked"],
+    })
 
 
 @app.route("/extract", methods=["POST"])
