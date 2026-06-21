@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template_string
 from gemini_test import (
     extract_only,
     save_to_sheet,
@@ -26,9 +26,19 @@ DEFAULT_CLIENTS = {
         "sheet_id": "1WKFiRahwi8V6JxoU1ZmIUqXqFnAVDZvY0uuyf0c3I40",
         "month": "2026-06",
         "fields": ["Invoice No", "Date", "Description", "From", "To", "GST No", "Lorry No", "Amount", "Grand Total"],
-        "onboarding_state": None
+        "onboarding_state": None,
+        "invoice_count": 0,
+        "blocked": False
     }
 }
+
+
+def normalize_client(client):
+    if "invoice_count" not in client:
+        client["invoice_count"] = 0
+    if "blocked" not in client:
+        client["blocked"] = False
+    return client
 
 
 def load_clients():
@@ -38,8 +48,10 @@ def load_clients():
         for phone, default in DEFAULT_CLIENTS.items():
             if phone not in loaded or "fields" not in loaded.get(phone, {}):
                 loaded[phone] = default
+        for phone in loaded:
+            loaded[phone] = normalize_client(loaded[phone])
         return loaded
-    return DEFAULT_CLIENTS.copy()
+    return {phone: normalize_client(data.copy()) for phone, data in DEFAULT_CLIENTS.items()}
 
 
 def save_clients(clients):
@@ -51,10 +63,41 @@ def get_client(phone):
     return load_clients().get(phone)
 
 
+def ensure_joined_at(phone):
+    clients = load_clients()
+    if phone not in clients:
+        clients[phone] = {"invoice_count": 0, "blocked": False}
+    else:
+        normalize_client(clients[phone])
+    if not clients[phone].get("joined_at"):
+        clients[phone]["joined_at"] = datetime.now().isoformat()
+    save_clients(clients)
+
+
+def increment_invoice_count(phone):
+    clients = load_clients()
+    if phone in clients:
+        clients[phone]["invoice_count"] = clients[phone].get("invoice_count", 0) + 1
+        save_clients(clients)
+
+
+def is_client_blocked(phone):
+    client = get_client(phone)
+    return bool(client and client.get("blocked", False))
+
+
+def mask_phone(phone):
+    if len(phone) <= 8:
+        return phone[:2] + "****" + phone[-2:]
+    return phone[:5] + "****" + phone[-4:]
+
+
 def set_client(phone, sheet_id, keep_schema=False):
     clients = load_clients()
     if phone not in clients:
-        clients[phone] = {}
+        clients[phone] = {"invoice_count": 0, "blocked": False}
+    else:
+        normalize_client(clients[phone])
     clients[phone]["sheet_id"] = sheet_id
     clients[phone]["month"] = datetime.now().strftime("%Y-%m")
     if not keep_schema:
@@ -66,9 +109,10 @@ def set_client(phone, sheet_id, keep_schema=False):
 def set_onboarding_state(phone, state):
     clients = load_clients()
     if phone in clients:
+        normalize_client(clients[phone])
         clients[phone]["onboarding_state"] = state
     else:
-        clients[phone] = {"onboarding_state": state}
+        clients[phone] = {"onboarding_state": state, "invoice_count": 0, "blocked": False}
     save_clients(clients)
 
 
@@ -379,6 +423,12 @@ Setup steps:
             if len(processed_message_ids) > 500:
                 processed_message_ids.clear()
 
+        if is_client_blocked(phone):
+            send_whatsapp_message(phone, "Your InvoiceBot access has been suspended. Contact support.", token)
+            return jsonify({"status": "blocked"}), 200
+
+        ensure_joined_at(phone)
+
         # Text message handling
         if message["type"] == "text":
             text = message["text"]["body"].strip()
@@ -436,6 +486,7 @@ Setup steps:
                     return jsonify({"status": "still_missing"}), 200
                 try:
                     save_to_sheet(session["data"], session["sheet_id"], client_fields=client_fields)
+                    increment_invoice_count(phone)
                     del pending_sessions[phone]
                     send_whatsapp_message(phone, "✅ Saved to Google Sheet!", token)
                 except DuplicateInvoiceError:
@@ -453,6 +504,7 @@ Setup steps:
                 if session:
                     client_fields = get_client_fields(phone)
                     save_to_sheet(session["data"], session["sheet_id"], allow_duplicate=True, client_fields=client_fields)
+                    increment_invoice_count(phone)
                     del pending_sessions[phone]
                     send_whatsapp_message(phone, "✅ Saved (duplicate allowed)!", token)
                 return jsonify({"status": "duplicate_saved"}), 200
@@ -542,6 +594,7 @@ Setup steps:
                     return jsonify({"status": "still_missing"}), 200
                 try:
                     save_to_sheet(session["data"], session["sheet_id"], client_fields=client_fields)
+                    increment_invoice_count(phone)
                     del pending_sessions[phone]
                     send_whatsapp_message(phone, "✅ Saved to Google Sheet!", token)
                 except DuplicateInvoiceError:
@@ -569,6 +622,7 @@ Setup steps:
                 if session:
                     client_fields = get_client_fields(phone)
                     save_to_sheet(session["data"], session["sheet_id"], allow_duplicate=True, client_fields=client_fields)
+                    increment_invoice_count(phone)
                     del pending_sessions[phone]
                     send_whatsapp_message(phone, "✅ Saved (duplicate allowed)!", token)
                 return jsonify({"status": "duplicate_saved"}), 200
@@ -800,6 +854,165 @@ Setup steps:
     except Exception as e:
         print("ERROR:", str(e))
         return jsonify({"error": str(e)}), 500
+
+
+ADMIN_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="refresh" content="60">
+    <title>InvoiceBot Admin</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f0f2f5;
+            color: #1a1a2e;
+            padding: 24px;
+        }
+        h1 { font-size: 1.5rem; margin-bottom: 20px; color: #16213e; }
+        .summary {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 24px;
+        }
+        .card {
+            background: #fff;
+            border-radius: 8px;
+            padding: 16px 24px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+            min-width: 140px;
+        }
+        .card .label { font-size: 0.75rem; color: #666; text-transform: uppercase; letter-spacing: 0.05em; }
+        .card .value { font-size: 1.75rem; font-weight: 700; margin-top: 4px; }
+        .card.active .value { color: #27ae60; }
+        .card.blocked .value { color: #e74c3c; }
+        .card.invoices .value { color: #2980b9; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #fff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+        }
+        th {
+            background: #16213e;
+            color: #fff;
+            padding: 12px 16px;
+            text-align: left;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        td { padding: 11px 16px; border-bottom: 1px solid #eee; font-size: 0.9rem; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: #f8f9ff; }
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .badge-yes { background: #d4edda; color: #155724; }
+        .badge-no { background: #f8d7da; color: #721c24; }
+        .badge-active { background: #d4edda; color: #155724; }
+        .badge-blocked { background: #f8d7da; color: #721c24; }
+        .footer { margin-top: 16px; font-size: 0.75rem; color: #999; }
+    </style>
+</head>
+<body>
+    <h1>InvoiceBot Admin Dashboard</h1>
+    <div class="summary">
+        <div class="card"><div class="label">Total Users</div><div class="value">{{ total_users }}</div></div>
+        <div class="card invoices"><div class="label">Total Invoices</div><div class="value">{{ total_invoices }}</div></div>
+        <div class="card active"><div class="label">Active</div><div class="value">{{ active_count }}</div></div>
+        <div class="card blocked"><div class="label">Blocked</div><div class="value">{{ blocked_count }}</div></div>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Phone</th>
+                <th>Joined</th>
+                <th>Invoices</th>
+                <th>Schema Set</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+            <tr>
+                <td>{{ row.masked_phone }}</td>
+                <td>{{ row.joined_date }}</td>
+                <td>{{ row.invoice_count }}</td>
+                <td><span class="badge badge-{{ row.schema_class }}">{{ row.schema_set }}</span></td>
+                <td><span class="badge badge-{{ row.status_class }}">{{ row.status }}</span></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p class="footer">Auto-refreshes every 60 seconds &middot; {{ now }}</p>
+</body>
+</html>
+"""
+
+
+@app.route("/admin")
+def admin():
+    key = request.args.get("key", "")
+    admin_key = os.environ.get("ADMIN_KEY", "")
+    if not admin_key or key != admin_key:
+        return "Forbidden", 403
+
+    clients = load_clients()
+    rows = []
+    total_invoices = 0
+    active_count = 0
+    blocked_count = 0
+
+    for phone, client in sorted(clients.items(), key=lambda x: x[1].get("joined_at") or "", reverse=True):
+        blocked = client.get("blocked", False)
+        invoice_count = client.get("invoice_count", 0)
+        fields = client.get("fields")
+        schema_set = bool(fields)
+
+        total_invoices += invoice_count
+        if blocked:
+            blocked_count += 1
+        else:
+            active_count += 1
+
+        joined_at = client.get("joined_at")
+        if joined_at:
+            try:
+                joined_date = datetime.fromisoformat(joined_at).strftime("%d %b %Y")
+            except ValueError:
+                joined_date = joined_at[:10]
+        else:
+            joined_date = "—"
+
+        rows.append({
+            "masked_phone": mask_phone(phone),
+            "joined_date": joined_date,
+            "invoice_count": invoice_count,
+            "schema_set": "Yes" if schema_set else "No",
+            "schema_class": "yes" if schema_set else "no",
+            "status": "Blocked" if blocked else "Active",
+            "status_class": "blocked" if blocked else "active",
+        })
+
+    return render_template_string(
+        ADMIN_TEMPLATE,
+        total_users=len(clients),
+        total_invoices=total_invoices,
+        active_count=active_count,
+        blocked_count=blocked_count,
+        rows=rows,
+        now=datetime.now().strftime("%d %b %Y %H:%M:%S"),
+    )
 
 
 @app.route("/extract", methods=["POST"])
