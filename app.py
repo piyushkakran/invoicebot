@@ -483,6 +483,7 @@ Setup steps:
                 if client:
                     clients = load_clients()
                     clients[phone]["month"] = datetime.now().strftime("%Y-%m")
+                    clients[phone]["onboarding_state"] = None  # ✅ FIX: state clear karo
                     save_clients(clients)
                     send_whatsapp_message(phone, "✅ Continuing with same sheet!\nSend invoice photos 📸", token)
                 return jsonify({"status": "same_sheet"}), 200
@@ -604,8 +605,14 @@ Setup steps:
                 client_fields = get_client_fields(phone)
                 missing = get_missing_fields(session["data"], client_fields)
                 if missing:
-                    send_whatsapp_message(phone, "Kuch fields missing hain. Field number aur value bhejo, jaise: 1 25000", token)
-                    return jsonify({"status": "still_missing"}), 200
+                    missing_names = ", ".join([label for _, _, label in missing])
+                    send_button_message(
+                        phone,
+                        f"⚠️ Yeh fields missing hain:\n{missing_names}\n\nKya karna hai?",
+                        [("SAVE_AS_IS", "💾 Save as is"), ("FILL_MISSING", "✏️ Fill missing")],
+                        token
+                    )
+                    return jsonify({"status": "missing_fields_choice"}), 200
                 try:
                     save_to_sheet(session["data"], session["sheet_id"], client_fields=client_fields)
                     increment_invoice_count(phone)
@@ -629,6 +636,39 @@ Setup steps:
                     del pending_sessions[phone]
                 send_whatsapp_message(phone, "❌ Invoice cancelled.", token)
                 return jsonify({"status": "cancelled"}), 200
+
+            # Save with missing fields as blank
+            if button_id == "SAVE_AS_IS":
+                session = pending_sessions.get(phone)
+                if session:
+                    client_fields = get_client_fields(phone)
+                    try:
+                        save_to_sheet(session["data"], session["sheet_id"], client_fields=client_fields)
+                        increment_invoice_count(phone)
+                        del pending_sessions[phone]
+                        send_whatsapp_message(phone, "✅ Saved to Google Sheet! (missing fields blank chhod diye)", token)
+                    except DuplicateInvoiceError:
+                        send_button_message(
+                            phone,
+                            "⚠️ This invoice already exists! Save anyway?",
+                            [("DUPLICATE_YES", "Yes, save"), ("DUPLICATE_NO", "No, cancel")],
+                            token
+                        )
+                return jsonify({"status": "saved_as_is"}), 200
+
+            # User wants to fill missing fields
+            if button_id == "FILL_MISSING":
+                session = pending_sessions.get(phone)
+                if session:
+                    client_fields = get_client_fields(phone)
+                    missing = get_missing_fields(session["data"], client_fields)
+                    missing_list = "\n".join([f"{i}. {label}" for i, _, label in missing])
+                    send_whatsapp_message(
+                        phone,
+                        f"✏️ Missing fields fill karo:\n{missing_list}\n\nFormat: <number> <value>\nJaise: 1 25000",
+                        token
+                    )
+                return jsonify({"status": "fill_missing"}), 200
 
             # Duplicate confirm: Yes / No
             if button_id == "DUPLICATE_YES":
