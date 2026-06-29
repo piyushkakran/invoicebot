@@ -453,14 +453,14 @@ Setup steps:
                 sheet_id = extract_sheet_id(text[6:].strip())
                 client = get_client(phone)
                 if client and client.get("fields"):
-                    pending_sheet_change[phone] = sheet_id
-                    set_onboarding_state(phone, "awaiting_schema_reuse_choice")
-                    send_button_message(
-                        phone,
-                        "Aapka purana schema use karna hai?",
-                        [("SCHEMA_SAME", "Same schema"), ("SCHEMA_NEW", "New schema")],
-                        token
-                    )
+                    # Same fields keep karo, sirf sheet update karo
+                    clients = load_clients()
+                    clients[phone]["sheet_id"] = sheet_id
+                    clients[phone]["month"] = datetime.now().strftime("%Y-%m")
+                    clients[phone]["onboarding_state"] = None
+                    save_clients(clients)
+                    fields = client.get("fields", [])
+                    send_whatsapp_message(phone, f"✅ New sheet linked!\nSame schema use ho raha hai:\n{', '.join(fields)}\n\nAb invoice photos bhej sakte ho 📸", token)
                 else:
                     set_client(phone, sheet_id)
                     send_button_message(
@@ -483,9 +483,11 @@ Setup steps:
                 if client:
                     clients = load_clients()
                     clients[phone]["month"] = datetime.now().strftime("%Y-%m")
-                    clients[phone]["onboarding_state"] = None  # ✅ FIX: state clear karo
+                    clients[phone]["onboarding_state"] = None
+                    # fields kabhi reset nahi honge
                     save_clients(clients)
-                    send_whatsapp_message(phone, "✅ Continuing with same sheet!\nSend invoice photos 📸", token)
+                    fields = client.get("fields", [])
+                    send_whatsapp_message(phone, f"✅ Continuing with same sheet!\nSchema: {', '.join(fields)}\n\nSend invoice photos 📸", token)
                 return jsonify({"status": "same_sheet"}), 200
 
             # OK
